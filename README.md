@@ -200,6 +200,3 @@ cd client && npm run build
 | `PORT` | Server port | `3001` |
 | `NODE_ENV` | Environment | `development` |
 
-## License
-
-MIT
