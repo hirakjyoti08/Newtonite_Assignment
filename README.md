@@ -2,6 +2,8 @@
 
 A full-stack web application for teams to create, manage, and track operational work items (incidents, tasks, requests, investigations).
 
+![Newtonite Application Preview](./docs/images/dashboard.png)
+
 ## Features
 
 - **Work Item Management**: Create, update, transition, assign, and comment on work items
