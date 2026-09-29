@@ -1,0 +1,183 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── ENUMS ───────────────────────────────────────────
+
+enum TeamRole {
+  ADMIN
+  MANAGER
+  MEMBER
+  VIEWER
+}
+
+enum WorkItemType {
+  INCIDENT
+  TASK
+  REQUEST
+  INVESTIGATION
+}
+
+enum WorkItemStatus {
+  OPEN
+  TRIAGED
+  IN_PROGRESS
+  BLOCKED
+  RESOLVED
+  CLOSED
+}
+
+enum WorkItemPriority {
+  CRITICAL
+  HIGH
+  MEDIUM
+  LOW
+}
+
+enum EventAction {
+  CREATED
+  UPDATED
+  STATUS_CHANGED
+  PRIORITY_CHANGED
+  ASSIGNED
+  UNASSIGNED
+  COMMENTED
+  RESOLVED
+  CLOSED
+  REOPENED
+}
+
+// ─── MODELS ──────────────────────────────────────────
+
+model User {
+  id             String          @id @default(uuid())
+  email          String          @unique
+  name           String
+  passwordHash   String          @map("password_hash")
+  createdAt      DateTime        @default(now()) @map("created_at")
+  updatedAt      DateTime        @updatedAt @map("updated_at")
+
+  teamMemberships TeamMember[]
+  assignedItems   WorkItem[]     @relation("AssignedItems")
+  reportedItems   WorkItem[]     @relation("ReportedItems")
+  events          WorkItemEvent[]
+  comments        Comment[]
+  idempotencyKeys IdempotencyKey[]
+
+  @@map("users")
+}
+
+model Team {
+  id          String       @id @default(uuid())
+  name        String       @unique
+  description String?
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+
+  members     TeamMember[]
+  workItems   WorkItem[]
+
+  @@map("teams")
+}
+
+model TeamMember {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  teamId    String   @map("team_id")
+  role      TeamRole @default(MEMBER)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, teamId])
+  @@map("team_members")
+}
+
+model WorkItem {
+  id          String           @id @default(uuid())
+  title       String
+  description String?
+  type        WorkItemType     @default(TASK)
+  status      WorkItemStatus   @default(OPEN)
+  priority    WorkItemPriority @default(MEDIUM)
+  version     Int              @default(1) // ★ FOR OPTIMISTIC CONCURRENCY CONTROL
+  assigneeId  String?          @map("assignee_id")
+  reporterId  String           @map("reporter_id")
+  teamId      String           @map("team_id")
+  dueDate     DateTime?        @map("due_date")
+  createdAt   DateTime         @default(now()) @map("created_at")
+  updatedAt   DateTime         @updatedAt @map("updated_at")
+
+  assignee    User?            @relation("AssignedItems", fields: [assigneeId], references: [id])
+  reporter    User             @relation("ReportedItems", fields: [reporterId], references: [id])
+  team        Team             @relation(fields: [teamId], references: [id])
+  events      WorkItemEvent[]
+  comments    Comment[]
+
+  @@index([status])
+  @@index([priority])
+  @@index([teamId])
+  @@index([assigneeId])
+  @@index([reporterId])
+  @@index([createdAt])
+  @@index([updatedAt])
+  @@index([teamId, status])
+  @@index([assigneeId, status])
+  @@map("work_items")
+}
+
+model WorkItemEvent {
+  id         String      @id @default(uuid())
+  workItemId String      @map("work_item_id")
+  userId     String      @map("user_id")
+  action     EventAction
+  changes    Json?       // JSONB: { field: { from: oldValue, to: newValue } }
+  metadata   Json?       // JSONB: any additional context
+  createdAt  DateTime    @default(now()) @map("created_at")
+
+  workItem   WorkItem    @relation(fields: [workItemId], references: [id], onDelete: Cascade)
+  user       User        @relation(fields: [userId], references: [id])
+
+  @@index([workItemId])
+  @@index([createdAt])
+  @@map("work_item_events")
+}
+
+model Comment {
+  id         String   @id @default(uuid())
+  workItemId String   @map("work_item_id")
+  userId     String   @map("user_id")
+  body       String
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  workItem   WorkItem @relation(fields: [workItemId], references: [id], onDelete: Cascade)
+  user       User     @relation(fields: [userId], references: [id])
+
+  @@index([workItemId])
+  @@index([createdAt])
+  @@map("comments")
+}
+
+model IdempotencyKey {
+  id             String   @id @default(uuid())
+  key            String   @unique
+  userId         String   @map("user_id")
+  method         String   // HTTP method: POST, PATCH, etc.
+  path           String   // Request path
+  statusCode     Int      @map("status_code")
+  responseBody   Json     @map("response_body")
+  createdAt      DateTime @default(now()) @map("created_at")
+  expiresAt      DateTime @map("expires_at")
+
+  user           User     @relation(fields: [userId], references: [id])
+
+  @@index([expiresAt])
+  @@map("idempotency_keys")
+}
