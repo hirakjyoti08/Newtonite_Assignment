@@ -43,6 +43,93 @@ A full-stack web application for teams to create, manage, and track operational 
 | State Management | TanStack React Query v5 |
 | Routing | React Router v6 |
 
+## System Architecture
+
+### High-Level Architecture Diagram
+
+```mermaid
+graph TD
+    subgraph Client ["Client Layer (Browser / SPA)"]
+        UI["React 18 UI Components"]
+        RQ["TanStack React Query"]
+        Router["React Router v6"]
+        SSE_Client["SSE Event Listener"]
+    end
+
+    subgraph Gateway ["Express HTTP API Server"]
+        Auth["JWT Authentication"]
+        Zod["Zod Input Validation"]
+        RBAC["Role-Based Authorization"]
+        Idem["Idempotency Middleware"]
+        OCC["Optimistic Concurrency (OCC) Guard"]
+    end
+
+    subgraph Service ["Business Logic & Services"]
+        AuthService["Auth Service"]
+        WorkItemService["Work Item Service"]
+        TeamService["Team Service"]
+        AuditService["Audit Event Log Service"]
+        SSEService["Real-time SSE Publisher"]
+    end
+
+    subgraph Storage ["Data & Async Processing Layer"]
+        Prisma["Prisma ORM"]
+        Postgres[(PostgreSQL 16 Database)]
+        Redis[(Redis Key-Value Store)]
+        BullMQ["BullMQ Job Queue"]
+    end
+
+    UI --> RQ
+    RQ --> Gateway
+    Gateway --> Auth --> RBAC --> Idem --> OCC
+    OCC --> WorkItemService
+    AuthService --> Prisma
+    WorkItemService --> Prisma
+    AuditService --> Prisma
+    Prisma --> Postgres
+    Idem --> Redis
+    SSEService --> SSE_Client
+    WorkItemService --> BullMQ
+    BullMQ --> Redis
+```
+
+### Mutation & Concurrency Pipeline
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Client as Client App (React)
+    participant Server as Express Server
+    participant Auth as Auth & RBAC Middleware
+    participant Idem as Idempotency Store (Redis)
+    participant Service as Work Item Service
+    participant DB as PostgreSQL (Prisma)
+    participant SSE as SSE Broadcast Stream
+
+    Client->>Server: PATCH /api/work-items/:id (Idempotency-Key, version: 2)
+    Server->>Auth: Validate JWT & Role Permissions
+    Auth-->>Server: Authorized (e.g., MEMBER role)
+    Server->>Idem: Check Idempotency-Key
+    alt Key cached in Redis
+        Idem-->>Client: Return cached response immediately
+    else Key is new
+        Server->>Service: Update Work Item (expectedVersion = 2)
+        Service->>DB: Fetch current work item
+        alt DB version != 2 (Stale version)
+            DB-->>Service: Current version is 3
+            Service-->>Server: Throw 409 Conflict Error (return latest state)
+            Server-->>Client: HTTP 409 Conflict Response
+        else DB version == 2 (Valid OCC)
+            Service->>DB: Increment version to 3 & record audit event
+            DB-->>Service: Updated successfully
+            Service->>Idem: Cache response with Idempotency-Key
+            Service->>SSE: Publish WORK_ITEM_UPDATED event
+            SSE-->>Client: Real-time SSE notification
+            Service-->>Client: HTTP 200 OK + Updated Work Item
+        end
+    end
+```
+
 ## Quick Start
 
 ### Prerequisites
