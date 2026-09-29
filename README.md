@@ -4,20 +4,21 @@ A full-stack web application for teams to create, manage, and track operational 
 
 ## Application Screenshots
 
-### 1. Admin Dashboard
+### 1. Authentication
+![Login Screen](./docs/images/login.png)
+
+### 2. Admin Dashboard
 ![Admin Dashboard](./docs/images/admin_dashboard.png)
 
-### 2. Work Item Detail & Audit Timeline
+### 3. Work Item Detail & Audit Timeline
 ![Work Item Detail](./docs/images/admin_detail.png)
 
-### 3. Manager View
+### 4. Manager View
 ![Manager Dashboard](./docs/images/manager_dashboard.png)
 
-### 4. Viewer Mode
+### 5. Viewer Mode
 ![Viewer Dashboard](./docs/images/viewer_dashboard.png)
 
-### 5. Authentication
-![Login Screen](./docs/images/login.png)
 
 ## Features
 
