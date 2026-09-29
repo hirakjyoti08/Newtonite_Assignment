@@ -3,11 +3,12 @@ import jwt from 'jsonwebtoken';
 import { config } from '../config';
 import { UserResponse, TeamRole } from '../shared/types';
 import prisma from '../utils/prisma';
+import { UnauthorizedError, ConflictError } from '../utils/errors';
 
 export async function register(email: string, password: string, name: string) {
   const existing = await prisma.user.findUnique({ where: { email } });
   if (existing) {
-    throw new Error('Email already registered');
+    throw new ConflictError('Email already registered');
   }
 
   const passwordHash = await bcrypt.hash(password, 10);
@@ -34,12 +35,12 @@ export async function login(email: string, password: string) {
   });
 
   if (!user) {
-    throw new Error('Invalid credentials');
+    throw new UnauthorizedError('Invalid credentials');
   }
 
   const valid = await bcrypt.compare(password, user.passwordHash);
   if (!valid) {
-    throw new Error('Invalid credentials');
+    throw new UnauthorizedError('Invalid credentials');
   }
 
   const token = jwt.sign({ userId: user.id }, config.jwtSecret, {

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import axios from 'axios';
 import { useLogin } from '../api/queries/auth';
 import { useAuth } from '../hooks/useAuth';
 
@@ -21,8 +22,13 @@ export function LoginPage() {
       await loginMutation.mutateAsync({ email, password });
       navigate(from, { replace: true });
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Login failed';
-      setError(message);
+      if (axios.isAxiosError(err)) {
+        const serverMessage = err.response?.data?.error?.message;
+        setError(serverMessage || err.message || 'Login failed');
+      } else {
+        const message = err instanceof Error ? err.message : 'Login failed';
+        setError(message);
+      }
     }
   };
 
